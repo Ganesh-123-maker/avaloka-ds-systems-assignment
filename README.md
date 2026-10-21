@@ -6,7 +6,8 @@ Take-home assignment for the **AI / Multi-Agent Systems Intern** role at Avaloka
 
 ## Files in this repo
 
-- `solution.py` — both problem solutions, plus the room-assignment function from Question 3 of the analysis. When you run this file, it also runs its own small checks.
+- `solution.py` — both problem solutions, plus the room-assignment function from the Final Discussion, item 3 (room assignment). When you run this file, it also runs its own small checks.
+- `test_solution.py` — all the tests for `solution.py`, including the brute-force comparison on 500 random event sets (fixed seed, so the same sets are checked every run). Run it with `python3 test_solution.py`.
 - `Ganesh_Barmavath_Avaloka_Assignment.pdf` — the full written submission. For each problem, I have first explained my approach in simple words, and then given the code. At the end, I have answered all four questions in the Final Discussion & Analysis section.
 
 ## Problem 1: LRU Cache
@@ -18,12 +19,13 @@ I used two data structures together, because one alone was not enough.
 - The dictionary also points to the item's place (node) in the list. That is the important part — because of this, I never search in the list.
 - I also used two dummy nodes, one at the start and one at the end of the list. They do not store any data. They only make the code simple, so I don't need separate checks for an empty list.
 - One more point: even a `get` call counts as a use, so `get` also moves the item to the front, not only `put`.
+- One assumption I am making: the capacity is 1 or more. I have not handled a negative capacity, because a cache cannot have a negative size.
 
 ## Problem 2: Event Scheduler
 
 - **`can_attend_all(events)`:** I first sort the events by start time. After sorting, I only check each event with the one just before it. If an event starts before the previous event has ended, there is an overlap and the answer is False. If one event ends at 10 and the next starts at 10, that is not an overlap.
 - **`min_rooms_required(events)`:** the number of rooms needed is equal to the maximum number of events going on at the same time. I go through the events in start-time order and keep the end times of the busy rooms in a min-heap, so the room that will become free first is always at the top. If that room has ended before the new event starts, I give the same room to this event. If not, I take one more room.
-- **`assign_rooms(events)`:** this is the extension from Question 3. It does the same work as above, but it also remembers which room each event got, and returns the answer in the same order in which the events were given.
+- **`assign_rooms(events)`:** this is the extension from the Final Discussion, item 3 (room assignment). It does the same work as above, but it also remembers which room each event got, and returns the answer in the same order in which the events were given.
 
 ## Complexity, in points
 
@@ -49,4 +51,4 @@ All checks passed.
 assign_rooms demo: [((9, 10), 1), ((9, 11), 2), ((10, 12), 1)]
 ```
 
-For testing, I ran the standard capacity-2 example for the LRU cache and checked each answer one by one. For the scheduler, I also compared my answers with a small brute-force program on 500 random sets of events, including empty lists and lists with only one event. All the answers matched.
+For testing, I ran the standard capacity-2 example for the LRU cache and checked each answer one by one. For the scheduler, I also compared my answers with a small brute-force program on 500 random sets of events, including empty lists and lists with only one event. All the answers matched. All of these tests are saved in `test_solution.py` in this repo.

@@ -8,6 +8,7 @@ Problem 2: Event Scheduler (sorting + min-heap)
 """
 
 import heapq
+import threading
 
 
 # ---------------------------------------------------------------------------
@@ -137,6 +138,26 @@ def assign_rooms(events):
 
 
 # ---------------------------------------------------------------------------
+# Final Discussion, item 4 (thread safety): a thread-safe version of the
+# cache. One lock is held for the WHOLE get / put, because in an LRU cache
+# even get changes the list order, so it is not a read-only operation.
+# ---------------------------------------------------------------------------
+
+class ThreadSafeLRUCache(LRUCache):
+    def __init__(self, capacity: int):
+        super().__init__(capacity)
+        self._lock = threading.Lock()
+
+    def get(self, key: int) -> int:
+        with self._lock:
+            return super().get(key)
+
+    def put(self, key: int, value: int) -> None:
+        with self._lock:
+            return super().put(key, value)
+
+
+# ---------------------------------------------------------------------------
 # Quick self-checks (run: python solution.py)
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
@@ -167,6 +188,21 @@ if __name__ == "__main__":
 
     assigned = assign_rooms([(9, 10), (9, 11), (10, 12)])
     assert assigned == [((9, 10), 1), ((9, 11), 2), ((10, 12), 1)], assigned
+
+    # Thread-safe version: same behaviour, plus a simple threaded smoke test
+    tc = ThreadSafeLRUCache(2)
+    tc.put(1, 1); tc.put(2, 2); tc.put(3, 3)
+    assert tc.get(1) == -1 and tc.get(3) == 3
+
+    def hammer(cache, n):
+        for i in range(n):
+            cache.put(i % 50, i)
+            cache.get(i % 50)
+
+    threads = [threading.Thread(target=hammer, args=(tc, 500)) for _ in range(8)]
+    for t in threads: t.start()
+    for t in threads: t.join()
+    assert len(tc.cache) <= tc.capacity   # capacity never crossed, no crash
 
     print("All checks passed.")
     print("assign_rooms demo:", assigned)
