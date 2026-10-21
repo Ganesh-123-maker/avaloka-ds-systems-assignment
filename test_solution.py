@@ -1,36 +1,22 @@
 """
-Tests for solution.py — Avaloka (Guruvai Sciences) assignment.
-Author: Ganesh Barmavath
-
-Run:  python3 test_solution.py
-
-What is tested:
-1. LRU Cache: the standard capacity-2 sequence, update-in-place, and
-   cache misses returning -1.
-2. Event Scheduler: can_attend_all, min_rooms_required and assign_rooms
-   are compared against a slow but simple brute-force method on 500
-   randomly generated sets of events (random seed is fixed, so the
-   same 500 sets are checked every run).
-
-The brute-force method counts, for the room problem, the maximum number
-of events running at the same time by collecting every start (+1) and
-end (-1) point and walking through them in order. An event that ends at
-the same time another starts is counted as finished first, because
-adjacent events are not overlaps.
+Tests for solution.py — Ganesh Barmavath
+Run: python3 test_solution.py
 """
 
 import random
+import threading
 
 from solution import LRUCache, ThreadSafeLRUCache, can_attend_all, \
     min_rooms_required, assign_rooms
 
 
 def brute_max_overlap(events):
+    # slow and simple: +1 at every start, -1 at every end,
+    # ends counted before starts at the same time
     points = []
     for start, end in events:
-        points.append((start, 1))    # one more event starts
-        points.append((end, -1))     # one event ends
-    # at the same time value, endings (-1) come before beginnings (+1)
+        points.append((start, 1))
+        points.append((end, -1))
     points.sort(key=lambda p: (p[0], p[1]))
     running = best = 0
     for _, change in points:
@@ -43,24 +29,25 @@ def test_lru():
     c = LRUCache(2)
     c.put(1, 1); c.put(2, 2)
     assert c.get(1) == 1
-    c.put(3, 3)                      # evicts key 2
+    c.put(3, 3)
     assert c.get(2) == -1
-    c.put(4, 4)                      # evicts key 1
+    c.put(4, 4)
     assert c.get(1) == -1
     assert c.get(3) == 3
     assert c.get(4) == 4
-    c.put(4, 44)                     # update in place, no eviction
+    c.put(4, 44)
     assert c.get(4) == 44
+    assert c.get(3) == 3
     assert LRUCache(1).get(99) == -1
 
-    tc = ThreadSafeLRUCache(2)       # thread-safe version, same behaviour
+    tc = ThreadSafeLRUCache(2)
     tc.put(1, 1); tc.put(2, 2); tc.put(3, 3)
     assert tc.get(1) == -1 and tc.get(3) == 3
     print("LRU cache tests passed.")
 
 
 def test_scheduler_random(trials=500):
-    random.seed(42)                  # fixed seed: same sets every run
+    random.seed(42)
     for _ in range(trials):
         events = []
         for _ in range(random.randint(0, 9)):
@@ -74,13 +61,58 @@ def test_scheduler_random(trials=500):
         assigned = assign_rooms(events)
         rooms_used = max((room for _, room in assigned), default=0)
         assert rooms_used == expected_rooms, (events, assigned)
-        # events must come back in the original order
         assert [event for event, _ in assigned] == events, (events, assigned)
-    print(f"Scheduler tests passed on {trials} random event sets "
-          f"(brute-force comparison).")
+
+        # in one room, no two events should overlap
+        by_room = {}
+        for (s, e), room in assigned:
+            by_room.setdefault(room, []).append((s, e))
+        for room, evs in by_room.items():
+            evs.sort()
+            for i in range(1, len(evs)):
+                assert evs[i][0] >= evs[i - 1][1], (events, assigned)
+    print(f"Scheduler tests passed on {trials} random event sets.")
+
+
+def test_thread_safe_stress(threads_count=8, ops_per_thread=2000):
+    cache = ThreadSafeLRUCache(16)
+
+    def worker(seed):
+        rng = random.Random(seed)
+        for _ in range(ops_per_thread):
+            key = rng.randint(0, 49)
+            if rng.random() < 0.5:
+                cache.put(key, rng.randint(0, 1000))
+            else:
+                cache.get(key)
+
+    threads = [threading.Thread(target=worker, args=(i,))
+               for i in range(threads_count)]
+    for t in threads: t.start()
+    for t in threads: t.join()
+
+    assert len(cache.cache) <= cache.capacity
+
+    forward = []
+    node = cache.head.next
+    while node is not cache.tail:
+        forward.append(node.key)
+        node = node.next
+    backward = []
+    node = cache.tail.prev
+    while node is not cache.head:
+        backward.append(node.key)
+        node = node.prev
+
+    assert forward == backward[::-1]
+    assert len(forward) == len(cache.cache)
+    assert set(forward) == set(cache.cache.keys())
+    print(f"Thread-safety stress test passed "
+          f"({threads_count} threads x {ops_per_thread} random get/put).")
 
 
 if __name__ == "__main__":
     test_lru()
     test_scheduler_random()
+    test_thread_safe_stress()
     print("All tests passed.")
